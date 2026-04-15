@@ -52,13 +52,13 @@ jobs:
     steps:
       # 步骤 1：签出（拉取）当前仓库的全部代码
       - name: 检出仓库代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0           # 拉取完整 Git 历史记录（Quartz 会用它显示文档最后修改时间）
 
       # 步骤 2：设置 Node.js 运行环境
       - name: 设置 Node.js 环境
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22         # Quartz v4 要求 Node.js ≥ 22，务必使用正确版本
 
@@ -89,7 +89,7 @@ jobs:
       # 步骤 7：将构建产物上传为 GitHub Pages 专用的 Artifact
       # 注意：必须使用 upload-pages-artifact，它会创建名为 "github-pages" 的内部 artifact
       - name: 上传 Pages 专用 Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./public           # 指定要上传的文件夹路径（Quartz 默认输出目录）
 
@@ -107,4 +107,4 @@ jobs:
       # 部署步骤：使用 GitHub 官方 Action，它会自动获取 build 作业上传的 artifact 并发布
       - name: 部署到 GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
