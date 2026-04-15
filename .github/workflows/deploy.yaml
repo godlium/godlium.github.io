@@ -1,0 +1,110 @@
+# ============================================================
+# 工作流名称：显示在 GitHub Actions 页面的标签上
+# ============================================================
+name: Build and Deploy to GitHub Pages
+
+# ------------------------------------------------------------
+# 触发器：定义什么情况下自动运行此工作流
+# ------------------------------------------------------------
+on:
+  # 当代码推送到 v4 分支时触发（Quartz v4 默认主分支名为 v4，请勿随意修改）
+  push:
+    branches: ["v4"]
+
+  # 允许在 GitHub 网页端手动触发工作流（进入 Actions 页面 -> 选择本工作流 -> Run workflow）
+  workflow_dispatch:
+
+  # 可选：定时自动构建（下面为每天 UTC 0 点，即北京时间早 8 点）
+  # 如需启用，去掉下面三行的注释符号 #
+  # schedule:
+  #   - cron: "0 0 * * *"
+
+# ------------------------------------------------------------
+# 权限设置：授予工作流必要的 GitHub API 权限
+# ------------------------------------------------------------
+permissions:
+  contents: read      # 读取仓库代码的权限（用于 checkout 步骤）
+  pages: write        # 向 GitHub Pages 推送部署内容的权限（用于 deploy 步骤）
+  id-token: write     # 用于 OIDC 身份验证，是部署到 GitHub Pages 的必要权限
+
+# ------------------------------------------------------------
+# 并发控制：防止同时运行多个部署流程造成冲突或半成品覆盖
+# ------------------------------------------------------------
+concurrency:
+  group: "pages"                  # 并发组名称，相同组的工作流在同一时间只运行一个
+  cancel-in-progress: false       # 是否取消正在运行的旧流程（false 表示排队等待，确保每次部署完整）
+
+# ------------------------------------------------------------
+# 全局环境变量：作用于所有作业和步骤
+# ------------------------------------------------------------
+env:
+  # 提前启用 Node.js 24 运行环境，消除 Actions 弃用警告（不影响构建结果）
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# ------------------------------------------------------------
+# 作业定义：工作流由一系列作业组成，作业之间可以设置依赖关系
+# ------------------------------------------------------------
+jobs:
+  # ---------- 构建作业：负责生成静态网站文件 ----------
+  build:
+    runs-on: ubuntu-latest        # 使用 GitHub 提供的最新 Ubuntu 虚拟环境
+
+    steps:
+      # 步骤 1：签出（拉取）当前仓库的全部代码
+      - name: 检出仓库代码
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0           # 拉取完整 Git 历史记录（Quartz 会用它显示文档最后修改时间）
+
+      # 步骤 2：设置 Node.js 运行环境
+      - name: 设置 Node.js 环境
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22         # Quartz v4 要求 Node.js ≥ 22，务必使用正确版本
+
+      # 步骤 3：缓存 NPM 依赖，加速后续构建（首次运行后生效）
+      - name: 缓存 NPM 依赖
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm             # 缓存 npm 的全局缓存目录
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # 步骤 4：安装项目依赖（依据 package-lock.json 精确安装，确保环境一致）
+      - name: 安装 NPM 依赖包
+        run: npm ci                # ci 比 install 更快更严格，适合 CI 环境
+
+      # 步骤 5：（可选）运行类型检查和代码风格校验
+      # 如果遇到 TypeScript 弃用警告导致失败，可暂时注释掉本步骤
+      # 或按之前建议修改 tsconfig.json 后再启用
+      # - name: 检查类型与代码风格
+      #   run: npm run check
+
+      # 步骤 6：执行 Quartz 构建命令，生成静态网站文件到 public/ 目录
+      # 重要：由于 Obsidian 笔记存放在 docs/ 目录（而非默认的 content/），需通过 --directory 参数指定
+      - name: 构建 Quartz 网站
+        run: npx quartz build --directory docs
+
+      # 步骤 7：将构建产物上传为 GitHub Pages 专用的 Artifact
+      # 注意：必须使用 upload-pages-artifact，它会创建名为 "github-pages" 的内部 artifact
+      - name: 上传 Pages 专用 Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public           # 指定要上传的文件夹路径（Quartz 默认输出目录）
+
+  # ---------- 部署作业：将构建产物发布到 GitHub Pages ----------
+  deploy:
+    needs: build                  # 依赖 build 作业，只有 build 成功后才运行
+    runs-on: ubuntu-latest
+
+    # 环境配置：指定部署的目标环境为 github-pages，并获取最终部署 URL
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}   # 自动注入部署后的网站地址
+
+    steps:
+      # 部署步骤：使用 GitHub 官方 Action，它会自动获取 build 作业上传的 artifact 并发布
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
