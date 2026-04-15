@@ -1,9 +1,11 @@
+# 操作系统文件
 .DS_Store
 .gitignore
 node_modules
 public
 prof
 tsconfig.tsbuildinfo
+# Obsidian 缓存文件
 .obsidian
 .quartz-cache
 private/
