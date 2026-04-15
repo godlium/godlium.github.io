@@ -84,7 +84,7 @@ jobs:
       # 步骤 6：执行 Quartz 构建命令，生成静态网站文件到 public/ 目录
       # 重要：由于 Obsidian 笔记存放在 docs/ 目录（而非默认的 content/），需通过 --directory 参数指定
       - name: 构建 Quartz 网站
-        run: npx quartz build --directory docs
+        run: npx quartz build # --directory docs
 
       # 步骤 7：将构建产物上传为 GitHub Pages 专用的 Artifact
       # 注意：必须使用 upload-pages-artifact，它会创建名为 "github-pages" 的内部 artifact
